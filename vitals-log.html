@@ -1,0 +1,584 @@
+<title>Daily Vitals Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one narrow working column. Entry form first, then latest + averages, trend chart, full log. */
+:root {
+  --bg: #f3f6f8;
+  --surface: #ffffff;
+  --fg: #142229;
+  --muted: #5b6d76;
+  --line: #dbe3e8;
+  --accent: #0f6f86;
+  --accent-soft: #e1f0f4;
+  --sys: #0f6f86;
+  --dia: #c2730f;
+  --ok: #1d7a4a;      --ok-bg: #e2f3e9;
+  --warn: #8a6a00;    --warn-bg: #fbf1cf;
+  --high: #b25400;    --high-bg: #fde6d2;
+  --crit: #b3261e;    --crit-bg: #fbe0de;
+  --font-display: "Manrope", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1518; --surface: #152126; --fg: #e3ecef; --muted: #91a4ac; --line: #26363d;
+    --accent: #4fb8d0; --accent-soft: #173640; --sys: #4fb8d0; --dia: #e9a14a;
+    --ok: #6fd39c; --ok-bg: #173527; --warn: #e6c860; --warn-bg: #3a3214;
+    --high: #f0a066; --high-bg: #40280f; --crit: #f28b82; --crit-bg: #45201d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1518; --surface: #152126; --fg: #e3ecef; --muted: #91a4ac; --line: #26363d;
+  --accent: #4fb8d0; --accent-soft: #173640; --sys: #4fb8d0; --dia: #e9a14a;
+  --ok: #6fd39c; --ok-bg: #173527; --warn: #e6c860; --warn-bg: #3a3214;
+  --high: #f0a066; --high-bg: #40280f; --crit: #f28b82; --crit-bg: #45201d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+}
+.wrap {
+  max-width: 720px; margin: 0 auto;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 20px;
+}
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.75rem; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; margin: 0; }
+.sub { color: var(--muted); margin: 2px 0 0; font-size: 0.9rem; }
+.status { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.live .dot { background: var(--ok); }
+.status.local .dot { background: var(--warn); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Form */
+form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.span2 { grid-column: span 2; }
+.field.span4 { grid-column: 1 / -1; }
+label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+label .unit { text-transform: none; letter-spacing: 0; font-weight: 500; }
+input {
+  font: inherit; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-width: 0;
+}
+input[type="number"] { font-family: var(--font-data); font-size: 1.15rem; font-weight: 600; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bp-pair { display: flex; align-items: center; gap: 6px; }
+.bp-pair span { color: var(--muted); font-family: var(--font-data); font-size: 1.3rem; }
+.actions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 9px 14px; font-weight: 500; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; padding: 11px 20px; }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 8px; }
+button.ghost:hover { color: var(--fg); background: var(--bg); }
+button:disabled { opacity: 0.5; cursor: default; }
+.msg { font-size: 0.85rem; color: var(--muted); }
+.msg.err { color: var(--crit); }
+
+/* Summary */
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .k { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.stat .v { font-family: var(--font-data); font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .v small { font-size: 0.8rem; color: var(--muted); font-weight: 500; margin-left: 3px; }
+.stat .a { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.latest-when { font-size: 0.85rem; color: var(--muted); }
+
+.chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.c-ok { color: var(--ok); background: var(--ok-bg); }
+.c-warn { color: var(--warn); background: var(--warn-bg); }
+.c-high { color: var(--high); background: var(--high-bg); }
+.c-crit { color: var(--crit); background: var(--crit-bg); }
+
+/* Chart */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; font-size: 0.85rem; background: transparent; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chart-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+#chart { width: 100%; height: 220px; display: block; }
+#chart text { font-family: var(--font-data); font-size: 11px; fill: var(--muted); }
+.legend { display: flex; gap: 14px; font-size: 0.8rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.empty-chart { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 60px 0; }
+
+/* Log */
+.table-wrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 520px; }
+th { text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td.num { font-family: var(--font-data); font-weight: 600; }
+td.when { white-space: nowrap; }
+td.when .t { color: var(--muted); font-size: 0.82rem; }
+td.note { color: var(--muted); font-size: 0.85rem; max-width: 180px; overflow-wrap: anywhere; }
+td.row-actions { text-align: right; white-space: nowrap; }
+button.danger { color: var(--crit); }
+.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+.empty strong { color: var(--fg); display: block; font-family: var(--font-display); margin-bottom: 4px; }
+.foot { color: var(--muted); font-size: 0.78rem; }
+
+@media (max-width: 560px) {
+  form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field.span2 { grid-column: 1 / -1; }
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary .stat:first-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  tr.fresh td { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Daily Vitals Log</h1>
+      <p class="sub">Blood pressure, heart rate and weight, one entry at a time.</p>
+    </div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></div>
+  </header>
+
+  <section class="panel" aria-labelledby="formTitle">
+    <div class="panel-head">
+      <h2 id="formTitle">New reading</h2>
+      <button type="button" class="ghost" id="cancelEdit" hidden>Cancel edit</button>
+    </div>
+    <form id="form" autocomplete="off" novalidate>
+      <div class="field span2">
+        <label for="sys">Blood pressure <span class="unit">(mmHg, sys / dia)</span></label>
+        <div class="bp-pair">
+          <input id="sys" type="number" inputmode="numeric" min="50" max="260" placeholder="120" aria-label="Systolic">
+          <span>/</span>
+          <input id="dia" type="number" inputmode="numeric" min="30" max="160" placeholder="80" aria-label="Diastolic">
+        </div>
+      </div>
+      <div class="field">
+        <label for="pulse">Heart rate <span class="unit">(bpm)</span></label>
+        <input id="pulse" type="number" inputmode="numeric" min="25" max="250" placeholder="68">
+      </div>
+      <div class="field">
+        <label for="weight">Weight <span class="unit">(kg)</span></label>
+        <input id="weight" type="number" inputmode="decimal" step="0.1" min="20" max="400" placeholder="78.4">
+      </div>
+      <div class="field span2">
+        <label for="when">Date and time</label>
+        <input id="when" type="datetime-local">
+      </div>
+      <div class="field span2">
+        <label for="note">Note <span class="unit">(optional)</span></label>
+        <input id="note" type="text" maxlength="200" placeholder="e.g. after walk, left arm">
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary" id="saveBtn">Save reading</button>
+        <span class="msg" id="formMsg" role="status">Time is set to now. Change it if you're logging an earlier reading.</span>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="sumTitle">
+    <div class="panel-head">
+      <h2 id="sumTitle">Latest</h2>
+      <span class="latest-when" id="latestWhen"></span>
+    </div>
+    <div class="summary" id="summary"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="trendTitle">
+    <div class="panel-head">
+      <h2 id="trendTitle">Trend</h2>
+      <div class="chart-controls">
+        <div class="seg" role="group" aria-label="Metric">
+          <button type="button" data-metric="bp" aria-pressed="true">BP</button>
+          <button type="button" data-metric="pulse" aria-pressed="false">Heart rate</button>
+          <button type="button" data-metric="weight" aria-pressed="false">Weight</button>
+        </div>
+        <div class="seg" role="group" aria-label="Range">
+          <button type="button" data-range="7" aria-pressed="false">7d</button>
+          <button type="button" data-range="30" aria-pressed="true">30d</button>
+          <button type="button" data-range="90" aria-pressed="false">90d</button>
+          <button type="button" data-range="0" aria-pressed="false">All</button>
+        </div>
+      </div>
+    </div>
+    <div id="chartBox"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="logTitle">
+    <div class="panel-head">
+      <h2 id="logTitle">All readings <span class="sub" id="count" style="font-family:var(--font-body);font-weight:400"></span></h2>
+      <button type="button" id="exportBtn" hidden>Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>BP</th><th>Category</th><th>HR</th><th>Weight</th><th>Note</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot">Categories follow common adult guidelines (Normal under 120/80; Stage 2 at 140/90 or above). They are a guide only, not a diagnosis. Your readings are saved to your account and are private to you, even if you share this page.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = { readings: [], metric: "bp", range: 30, editingId: null, mode: "loading", confirmId: null, freshId: null };
+  let col = null;            // db collection ref when live
+  let downloads = null;
+  const LS_KEY = "vitals-log-local";
+
+  // ---------- helpers ----------
+  const pad = (n) => String(n).padStart(2, "0");
+  function toLocalInput(ms) {
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const fmtShort = (ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const num = (v) => { if (v === "" || v == null) return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function bpCategory(sys, dia) {
+    if (sys == null || dia == null) return null;
+    if (sys > 180 || dia > 120) return { label: "Very high", cls: "c-crit" };
+    if (sys >= 140 || dia >= 90) return { label: "High · Stage 2", cls: "c-high" };
+    if (sys >= 130 || dia >= 80) return { label: "High · Stage 1", cls: "c-warn" };
+    if (sys >= 120) return { label: "Elevated", cls: "c-warn" };
+    if (sys < 90 || dia < 60) return { label: "Low", cls: "c-warn" };
+    return { label: "Normal", cls: "c-ok" };
+  }
+
+  function setStatus(kind, text) {
+    $("status").className = "status " + kind;
+    $("statusText").textContent = text;
+  }
+
+  // ---------- local fallback ----------
+  function loadLocal() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
+  }
+  function saveLocal(list) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {}
+  }
+
+  // ---------- form ----------
+  function resetForm() {
+    state.editingId = null;
+    $("form").reset();
+    $("when").value = toLocalInput(Date.now());
+    $("formTitle").textContent = "New reading";
+    $("saveBtn").textContent = "Save reading";
+    $("cancelEdit").hidden = true;
+  }
+
+  function showMsg(text, err) {
+    $("formMsg").textContent = text;
+    $("formMsg").className = "msg" + (err ? " err" : "");
+  }
+
+  $("cancelEdit").addEventListener("click", () => { resetForm(); showMsg("Edit cancelled."); });
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const sys = num($("sys").value), dia = num($("dia").value);
+    const pulse = num($("pulse").value), weight = num($("weight").value);
+    const whenVal = $("when").value;
+    const ts = whenVal ? new Date(whenVal).getTime() : Date.now();
+    const note = $("note").value.trim();
+
+    if ((sys == null) !== (dia == null)) return showMsg("Enter both blood pressure numbers (top and bottom), or leave both empty.", true);
+    if (sys != null && sys <= dia) return showMsg("The top number (systolic) should be higher than the bottom number (diastolic).", true);
+    if (sys == null && pulse == null && weight == null) return showMsg("Enter at least one measurement.", true);
+    if (!Number.isFinite(ts)) return showMsg("The date and time isn't valid.", true);
+
+    const body = { ts, sys, dia, pulse, weight: weight == null ? null : Math.round(weight * 10) / 10, note, savedAt: Date.now() };
+    const btn = $("saveBtn");
+    btn.disabled = true;
+    try {
+      let id = state.editingId;
+      if (state.mode === "live") {
+        if (id) await col.doc(id).set(body);
+        else id = (await col.add(body)).id;
+      } else {
+        const list = loadLocal();
+        if (id) { const i = list.findIndex((r) => r.id === id); if (i >= 0) list[i] = { id, ...body }; }
+        else { id = "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); list.push({ id, ...body }); }
+        saveLocal(list);
+        state.readings = list;
+        render();
+      }
+      state.freshId = id;
+      showMsg(state.editingId ? "Reading updated." : `Saved for ${fmtDate(ts)} at ${fmtTime(ts)}.`);
+      resetForm();
+    } catch (err) {
+      showMsg(err && err.code === "quota_exceeded" ? "Storage is full. Delete some old readings, then try again." : "Couldn't save. Check your connection and try again.", true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function startEdit(id) {
+    const r = state.readings.find((x) => x.id === id);
+    if (!r) return;
+    state.editingId = id;
+    $("sys").value = r.sys ?? ""; $("dia").value = r.dia ?? "";
+    $("pulse").value = r.pulse ?? ""; $("weight").value = r.weight ?? "";
+    $("note").value = r.note || ""; $("when").value = toLocalInput(r.ts);
+    $("formTitle").textContent = "Edit reading";
+    $("saveBtn").textContent = "Update reading";
+    $("cancelEdit").hidden = false;
+    showMsg(`Editing the reading from ${fmtDate(r.ts)}.`);
+    $("form").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("sys").focus({ preventScroll: true });
+  }
+
+  async function removeReading(id) {
+    try {
+      if (state.mode === "live") await col.doc(id).delete();
+      else { const list = loadLocal().filter((r) => r.id !== id); saveLocal(list); state.readings = list; }
+      if (state.editingId === id) resetForm();
+    } catch { showMsg("Couldn't delete that reading. Try again.", true); }
+    state.confirmId = null;
+    render();
+  }
+
+  // ---------- rendering ----------
+  function sorted() { return [...state.readings].sort((a, b) => b.ts - a.ts); }
+
+  function avg(list, key) {
+    const v = list.map((r) => r[key]).filter((x) => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  }
+
+  function renderSummary(list) {
+    const latestBP = list.find((r) => r.sys != null);
+    const latestHR = list.find((r) => r.pulse != null);
+    const latestW = list.find((r) => r.weight != null);
+    const weekAgo = Date.now() - 7 * 864e5;
+    const week = list.filter((r) => r.ts >= weekAgo);
+    const aSys = avg(week, "sys"), aDia = avg(week, "dia"), aHR = avg(week, "pulse"), aW = avg(week, "weight");
+    const cat = latestBP ? bpCategory(latestBP.sys, latestBP.dia) : null;
+
+    $("latestWhen").textContent = list.length ? `Last entry ${fmtDate(list[0].ts)}, ${fmtTime(list[0].ts)}` : "";
+    $("summary").innerHTML = `
+      <div class="stat">
+        <span class="k">Blood pressure</span>
+        <span class="v">${latestBP ? `${latestBP.sys}/${latestBP.dia}<small>mmHg</small>` : "—"}</span>
+        <span class="a">${cat ? `<span class="chip ${cat.cls}">${cat.label}</span> ` : ""}${aSys != null ? `7-day avg ${Math.round(aSys)}/${Math.round(aDia)}` : "No readings this week"}</span>
+      </div>
+      <div class="stat">
+        <span class="k">Heart rate</span>
+        <span class="v">${latestHR ? `${latestHR.pulse}<small>bpm</small>` : "—"}</span>
+        <span class="a">${aHR != null ? `7-day avg ${Math.round(aHR)}` : "No readings this week"}</span>
+      </div>
+      <div class="stat">
+        <span class="k">Weight</span>
+        <span class="v">${latestW ? `${latestW.weight.toFixed(1)}<small>kg</small>` : "—"}</span>
+        <span class="a">${aW != null ? `7-day avg ${aW.toFixed(1)}` : "No readings this week"}</span>
+      </div>`;
+  }
+
+  function renderRows(list) {
+    $("count").textContent = list.length ? `· ${list.length}` : "";
+    $("exportBtn").hidden = !list.length;
+    if (state.mode === "loading" && !list.length) {
+      $("rows").innerHTML = `<tr><td colspan="7" class="empty">Loading your readings…</td></tr>`;
+      return;
+    }
+    if (!list.length) {
+      $("rows").innerHTML = `<tr><td colspan="7" class="empty"><strong>No readings yet</strong>Enter today's numbers above and press Save reading. Each entry is stamped with the date and time.</td></tr>`;
+      return;
+    }
+    $("rows").innerHTML = list.map((r) => {
+      const cat = bpCategory(r.sys, r.dia);
+      const confirming = state.confirmId === r.id;
+      return `<tr data-id="${esc(r.id)}" class="${state.freshId === r.id ? "fresh" : ""}">
+        <td class="when">${esc(fmtDate(r.ts))}<br><span class="t">${esc(fmtTime(r.ts))}</span></td>
+        <td class="num">${r.sys != null ? `${r.sys}/${r.dia}` : "—"}</td>
+        <td>${cat ? `<span class="chip ${cat.cls}">${cat.label}</span>` : ""}</td>
+        <td class="num">${r.pulse ?? "—"}</td>
+        <td class="num">${r.weight != null ? Number(r.weight).toFixed(1) : "—"}</td>
+        <td class="note">${esc(r.note || "")}</td>
+        <td class="row-actions">${confirming
+          ? `<button type="button" class="ghost danger" data-act="confirm">Delete</button><button type="button" class="ghost" data-act="keep">Keep</button>`
+          : `<button type="button" class="ghost" data-act="edit">Edit</button><button type="button" class="ghost" data-act="delete">Delete</button>`}</td>
+      </tr>`;
+    }).join("");
+    state.freshId = null;
+  }
+
+  $("rows").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const id = b.closest("tr").dataset.id;
+    const act = b.dataset.act;
+    if (act === "edit") startEdit(id);
+    else if (act === "delete") { state.confirmId = id; render(); }
+    else if (act === "keep") { state.confirmId = null; render(); }
+    else if (act === "confirm") removeReading(id);
+  });
+
+  // ---------- chart ----------
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+  function renderChart(list) {
+    const metric = state.metric;
+    const series = metric === "bp"
+      ? [{ key: "sys", name: "Systolic", color: "--sys" }, { key: "dia", name: "Diastolic", color: "--dia" }]
+      : metric === "pulse" ? [{ key: "pulse", name: "Heart rate (bpm)", color: "--sys" }]
+      : [{ key: "weight", name: "Weight (kg)", color: "--sys" }];
+    const now = Date.now();
+    const from = state.range ? now - state.range * 864e5 : -Infinity;
+    const pts = list.filter((r) => r.ts >= from && series.some((s) => r[s.key] != null)).sort((a, b) => a.ts - b.ts);
+
+    $("legend").innerHTML = series.map((s) => `<span><i style="background:var(${s.color})"></i>${s.name}</span>`).join("")
+      + (metric === "bp" ? `<span><i style="background:var(--line)"></i>Guide 120/80</span>` : "");
+
+    if (!pts.length) {
+      $("chartBox").innerHTML = `<div class="empty-chart">No ${metric === "bp" ? "blood pressure" : metric === "pulse" ? "heart rate" : "weight"} readings in this range yet.</div>`;
+      return;
+    }
+
+    const W = Math.max(280, $("chartBox").clientWidth || 600), H = 220;
+    const m = { l: 40, r: 14, t: 12, b: 26 };
+    const x0 = state.range ? from : pts[0].ts;
+    const x1 = state.range ? now : Math.max(pts[pts.length - 1].ts, pts[0].ts + 864e5);
+    let vals = pts.flatMap((r) => series.map((s) => r[s.key]).filter((v) => v != null));
+    if (metric === "bp") vals = vals.concat([80, 120]);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const padV = Math.max((hi - lo) * 0.12, metric === "weight" ? 0.5 : 4);
+    lo -= padV; hi += padV;
+    const step = niceStep((hi - lo) / 4);
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    const X = (t) => m.l + ((t - x0) / (x1 - x0 || 1)) * (W - m.l - m.r);
+    const Y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+
+    let svg = `<svg id="chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(series.map((s) => s.name).join(" and "))} over time">`;
+    for (let v = lo; v <= hi + 1e-9; v += step) {
+      svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--line")}" stroke-width="1"/>`;
+      svg += `<text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${metric === "weight" && step < 1 ? v.toFixed(1) : Math.round(v)}</text>`;
+    }
+    if (metric === "bp") {
+      [120, 80].forEach((g) => svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(g)}" y2="${Y(g)}" stroke="${css("--muted")}" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>`);
+    }
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+      const t = x0 + (x1 - x0) * (i / ticks);
+      const anchor = i === 0 ? "start" : i === ticks ? "end" : "middle";
+      svg += `<text x="${X(t)}" y="${H - 6}" text-anchor="${anchor}">${esc(fmtShort(t))}</text>`;
+    }
+    series.forEach((s) => {
+      const color = css(s.color);
+      const sp = pts.filter((r) => r[s.key] != null);
+      if (sp.length > 1) {
+        const d = sp.map((r, i) => `${i ? "L" : "M"}${X(r.ts).toFixed(1)},${Y(r[s.key]).toFixed(1)}`).join("");
+        svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      }
+      sp.forEach((r, i) => {
+        const last = i === sp.length - 1;
+        svg += `<circle cx="${X(r.ts)}" cy="${Y(r[s.key])}" r="${last ? 4.5 : 2.5}" fill="${last ? color : css("--surface")}" stroke="${color}" stroke-width="2"><title>${esc(fmtDate(r.ts))} ${esc(fmtTime(r.ts))}: ${r[s.key]}</title></circle>`;
+      });
+    });
+    svg += `</svg>`;
+    $("chartBox").innerHTML = svg;
+  }
+
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    const f = raw / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  }
+
+  document.querySelectorAll("[data-metric]").forEach((b) => b.addEventListener("click", () => {
+    state.metric = b.dataset.metric;
+    document.querySelectorAll("[data-metric]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderChart(sorted());
+  }));
+  document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    state.range = Number(b.dataset.range);
+    document.querySelectorAll("[data-range]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderChart(sorted());
+  }));
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => renderChart(sorted()), 120); });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => renderChart(sorted()));
+  new MutationObserver(() => renderChart(sorted())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  function render() {
+    const list = sorted();
+    renderSummary(list);
+    renderChart(list);
+    renderRows(list);
+  }
+
+  // ---------- export ----------
+  $("exportBtn").addEventListener("click", async () => {
+    const rows = [["date", "time", "systolic", "diastolic", "heart_rate", "weight_kg", "note"]];
+    sorted().reverse().forEach((r) => {
+      const d = new Date(r.ts);
+      rows.push([`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`, `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+        r.sys ?? "", r.dia ?? "", r.pulse ?? "", r.weight ?? "", r.note || ""]);
+    });
+    const csv = rows.map((r) => r.map((c) => /[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : c).join(",")).join("\n");
+    if (!downloads) { showMsg("Export isn't available in this view.", true); return; }
+    try {
+      await downloads.save({ filename: `vitals-${toLocalInput(Date.now()).slice(0, 10)}.csv`, data: csv });
+    } catch (err) {
+      if (err && err.code !== "declined") showMsg("Couldn't export the file. Try again.", true);
+    }
+  });
+
+  // ---------- boot ----------
+  resetForm();
+  render();
+
+  function useLocal(reason) {
+    state.mode = "local";
+    state.readings = loadLocal();
+    setStatus("local", reason);
+    render();
+  }
+
+  (async () => {
+    const claude = window.claude;
+    if (!claude || !claude.use) return useLocal("Saved on this device only");
+    const [db, user, dl] = await Promise.all([claude.use("db"), claude.use("user"), claude.use("downloads")]);
+    downloads = dl;
+    const uid = user ? await user.id() : null;
+    if (!db || !uid) return useLocal("Sign in to save to your account. Saving on this device for now.");
+
+    col = db.doc(`data/users/${uid}/log`).collection("readings");
+    state.mode = "live";
+    const timer = setTimeout(() => setStatus("", "Can't reach your saved readings yet…"), 10000);
+    col.orderBy("ts", "desc").limit(1000).onSnapshot((snap) => {
+      state.readings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!snap.metadata.fromCache) { clearTimeout(timer); setStatus("live", "Saved to your account"); }
+      render();
+    }, (err) => {
+      clearTimeout(timer);
+      setStatus("", err.code === "revoked" ? "Access to saved data ended" : "Couldn't load saved readings");
+    });
+
+    // Move any readings saved on this device before signing in.
+    const local = loadLocal();
+    if (local.length) {
+      try {
+        for (const r of local) { const { id, ...body } = r; await col.add(body); }
+        saveLocal([]);
+        showMsg(`Moved ${local.length} reading${local.length > 1 ? "s" : ""} from this device to your account.`);
+      } catch {}
+    }
+  })();
+})();
+</script>
